@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AluOptim - Coupe Professionnelle Mohammedia</title>
+    <style>
+        :root { --primary: #2c3e50; --accent: #27ae60; --gray: #ecf0f1; }
+        body { font-family: 'Segoe UI', sans-serif; background: #f4f4f4; margin: 0; padding: 15px; }
+        .card { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); max-width: 600px; margin: auto; }
+        h1 { color: var(--primary); font-size: 1.4rem; text-align: center; border-bottom: 2px solid var(--accent); padding-bottom: 10px; }
+        .params { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; background: var(--gray); padding: 10px; border-radius: 5px; }
+        label { font-size: 0.8rem; font-weight: bold; display: block; }
+        input { width: 90%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; margin-top: 4px; }
+        textarea { width: 100%; height: 80px; border-radius: 4px; border: 1px solid #ccc; box-sizing: border-box; padding: 10px; font-family: monospace; }
+        button { width: 100%; padding: 15px; background: var(--primary); color: white; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; margin-top: 10px; }
+        button:hover { background: var(--accent); }
+        .result-bar { background: white; border: 1px solid #ddd; margin-top: 10px; padding: 10px; border-left: 8px solid var(--accent); }
+        .bar-viz { display: flex; height: 30px; background: #eee; margin-top: 10px; border-radius: 3px; overflow: hidden; }
+        .piece { border-right: 1px solid white; background: #3498db; color: white; font-size: 0.7rem; display: flex; align-items: center; justify-content: center; }
+        .waste { background: #e74c3c; opacity: 0.5; }
+    </small>
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h1>AluOptim <small style="font-weight:normal; font-size: 0.7rem;">(Mines-Ponts Algorithm v2.1)</small></h1>
+    
+    <div class="params">
+        <div>
+            <label>Barre Standard (cm)</label>
+            <input type="number" id="barLen" value="600">
+        </div>
+        <div>
+            <label>Épaisseur Lame (cm)</label>
+            <input type="number" id="kerf" value="0.4" step="0.1">
+        </div>
+        <div>
+            <label>Nettoyage Bords (cm)</label>
+            <input type="number" id="trim" value="1.5">
+        </div>
+        <div>
+            <label>Marge Sécurité (cm)</label>
+            <input type="number" id="buffer" value="0.2">
+        </div>
+    </div>
+
+    <label>Liste des longueurs à couper (cm) :</label>
+    <p style="font-size: 0.7rem; color: #666;">Entrez les nombres séparés par des virgules ou espaces (ex: 120, 120, 85, 230...)</p>
+    <textarea id="cutList" placeholder="Ex: 145, 145, 80, 80, 210"></textarea>
+
+    <button onclick="runOptimization()">CALCULER LE PLAN DE COUPE</button>
+
+    <div id="results"></div>
+</div>
+
+<script>
+function runOptimization() {
+    const L = parseFloat(document.getElementById('barLen').value);
+    const kerf = parseFloat(document.getElementById('kerf').value);
+    const trim = parseFloat(document.getElementById('trim').value);
+    const buffer = parseFloat(document.getElementById('buffer').value);
+    const input = document.getElementById('cutList').value;
+    
+    // Parse input string into sorted array
+    let cuts = input.split(/[,\s]+/).map(Number).filter(n => n > 0);
+    cuts.sort((a, b) => b - a); // Best-Fit Decreasing Sort
+
+    let bars = [];
+    const usableL = L - (2 * trim); // Subtract edge cleaning
+
+    cuts.forEach(cut => {
+        let bestBar = null;
+        let minSpaceLeft = Infinity;
+
+        // Effective length needed including the blade cut
+        const needed = cut + kerf + buffer;
+
+        for (let bar of bars) {
+            if (bar.remaining >= needed) {
+                let spaceAfter = bar.remaining - needed;
+                if (spaceAfter < minSpaceLeft) {
+                    bestBar = bar;
+                    minSpaceLeft = spaceAfter;
+                }
+            }
+        }
+
+        if (bestBar) {
+            bestBar.pieces.push(cut);
+            bestBar.remaining -= needed;
+        } else {
+            bars.push({
+                pieces: [cut],
+                remaining: usableL - cut - buffer
+            });
+        }
+    });
+
+    displayResults(bars, L);
+}
+
+function displayResults(bars, totalL) {
+    const container = document.getElementById('results');
+    container.innerHTML = `<h3>Total: ${bars.length} barres utilisées</h3>`;
+    
+    bars.forEach((bar, index) => {
+        let html = `<div class="result-bar"><strong>Barre #${index + 1}:</strong> [${bar.pieces.join('cm | ')}cm]`;
+        html += `<div class="bar-viz">`;
+        bar.pieces.forEach(p => {
+            let width = (p / totalL) * 100;
+            html += `<div class="piece" style="width:${width}%">${p}</div>`;
+        });
+        let wasteWidth = (bar.remaining / totalL) * 100;
+        html += `<div class="waste" style="width:${wasteWidth}%"></div>`;
+        html += `</div><small>Reste: ${bar.remaining.toFixed(1)} cm</small></div>`;
+        container.innerHTML += html;
+    });
+}
+</script>
+
+</body>
+</html>
